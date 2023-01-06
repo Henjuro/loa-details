@@ -23,7 +23,7 @@
     "electron-updater": "^5.3.0",
     "lodash": "^4.17.21",
     "vue-echarts": "^6.0.3",
-    "meter-core": "github:lost-ark-dev/meter-core"
+    "meter-core": "file://E:\\git\\github\\meter-core"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.2.13",
