@@ -27,7 +27,7 @@
             </q-item>
           </q-list>
         </q-menu>
-        <tr v-if="focusedPlayer === '#'">
+        <tr v-if="focusedPlayer === 0n">
           <th style="width: 26px"></th>
           <th style="width: 100%"></th>
           <template
@@ -289,7 +289,7 @@
             CNTR
           </th>
         </tr>
-        <tr v-else-if="focusedPlayer !== '#'">
+        <tr v-else-if="focusedPlayer !== 0n">
           <th style="width: 32px"></th>
           <th style="width: 100%"></th>
           <th
@@ -527,13 +527,13 @@
       </thead>
       <tbody
         v-if="
-          (focusedPlayer === '#' && sortedEntities) ||
-          (focusedPlayer !== '#' && sortedSkills.length === 0)
+          (focusedPlayer === 0n && sortedEntities) ||
+          (focusedPlayer !== 0n && sortedSkills.length === 0)
         "
       >
         <TableEntry
           v-for="player in sortedEntities"
-          :key="player.id"
+          :key="player.id.toString()"
           :player="player"
           :sortedBuffs="sortedBuffs"
           :damage-type="damageType"
@@ -548,7 +548,7 @@
       </tbody>
       <tbody
         v-else-if="
-          focusedPlayer !== '#' && sortedSkills && sortedSkills.length > 0
+          focusedPlayer !== 0n && sortedSkills && sortedSkills.length > 0
         "
       >
         <template
@@ -557,10 +557,10 @@
           <TableEntry
             :player="
               sortedEntities.find((e) => {
-                return e.name === focusedPlayer;
+                return (e.id === focusedPlayer);
               })
             "
-            :key="focusedPlayer"
+            :key="focusedPlayer.toString(16)"
             :sortedBuffs="sortedBuffs"
             :damage-type="damageType"
             :fight-duration="Math.max(1000, duration)"
@@ -569,7 +569,7 @@
             "
             :name-display="nameDisplay"
             :session-state="sessionState"
-            @click.right="focusedPlayer = '#'"
+            @click.right="focusedPlayer = 0n"
           />
           <tr class="spacing-row">
             <div></div>
@@ -584,7 +584,7 @@
           :class-name="focusedPlayerClass"
           :fight-duration="Math.max(1000, duration)"
           :session-state="sessionState"
-          @click.right="focusedPlayer = '#'"
+          @click.right="focusedPlayer = 0n"
         />
       </tbody>
     </table>
@@ -649,10 +649,10 @@ onMounted(() => {
   sortEntities();
 });
 
-const focusedPlayer = ref("#");
+const focusedPlayer = ref(0n);
 const focusedPlayerClass = ref("");
 function focusPlayer(player: Entity) {
-  focusedPlayer.value = player.name;
+  focusedPlayer.value = player.id;
   focusedPlayerClass.value = player.class;
   calculateSkills();
 }
@@ -666,7 +666,7 @@ function sortEntities() {
   if (Object.keys(props.sessionState).length <= 0) return;
 
   //TODO we changed that to not deepclone for performance boost, be carefull not to edit entities below (outside of display-reserved fields)
-  entitiesCopy.value = Object.values(props.sessionState.entities);
+  entitiesCopy.value = [...props.sessionState.entities.values()];
   const res = entitiesCopy.value
     .filter((entity) => {
       if (!entity.isPlayer) return false;
@@ -730,10 +730,10 @@ function sortEntities() {
 
 function calculateSkills() {
   sortedSkills.value = [];
-  if (focusedPlayer.value === "#") return;
+  if (focusedPlayer.value === 0n) return;
 
   const entity = entitiesCopy.value.find((e) => {
-    return e.name === focusedPlayer.value;
+    return e.id === focusedPlayer.value;
   });
   if (!entity) return;
 
@@ -836,7 +836,7 @@ function filterStatusEffects(
   id: number,
   damageType: string,
   statusEffects: Map<string, Map<number, StatusEffect>>,
-  focusedPlayer: string
+  focusedPlayer: bigint
 ) {
   // Party synergies
   if (
@@ -864,7 +864,7 @@ function filterStatusEffects(
   ) {
     if (
       ["self_buff_dmg", "self_buff_hit"].includes(damageType) &&
-      focusedPlayer === "#"
+      focusedPlayer === 0n
     ) {
       addStatusEffectIfNeeded(
         statusEffects,
@@ -878,7 +878,7 @@ function filterStatusEffects(
   } else if (["set"].includes(buff.buffcategory)) {
     if (
       ["self_buff_dmg", "self_buff_hit"].includes(damageType) &&
-      focusedPlayer === "#"
+      focusedPlayer === 0n
     ) {
       addStatusEffectIfNeeded(
         statusEffects,
@@ -895,7 +895,7 @@ function filterStatusEffects(
     // self & other identity, classskill, engravings
     if (
       ["self_buff_dmg", "self_buff_hit"].includes(damageType) &&
-      focusedPlayer !== "#"
+      focusedPlayer !== 0n
     ) {
       let key;
       if (buff.buffcategory === "ability") {
@@ -957,16 +957,16 @@ function addStatusEffectIfNeeded(
   tableKey: string,
   buffId: number,
   statusEffect: StatusEffect,
-  focusedPlayer: string,
+  focusedPlayer: bigint,
   damageType: string
 ) {
   if (!isStatusEffectFiltered(damageType, statusEffect)) {
     return;
   }
-  if (focusedPlayer !== "#" && props.sessionState) {
+  if (focusedPlayer !== 0n && props.sessionState) {
     // Check if the focused user has benifited from that buff
     // We only care about focused players, else we display everything
-    const focus = props.sessionState.entities[focusedPlayer];
+    const focus = props.sessionState.entities.get(focusedPlayer);
     if (!focus) return;
     // Hide buffs that doesn't benefit focused player
     if (
