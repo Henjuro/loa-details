@@ -199,6 +199,7 @@ function reviver(_key: string, value: any) {
     if (value.hasOwnProperty("dataType")) {
       if (value.dataType === "Map") return new Map(value.value);
       else if (value.dataType === "Set") return new Set(value.value);
+      else if (value.dataType === "BigInt") return BigInt(value.value);
     }
   }
   return value;
