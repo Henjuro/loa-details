@@ -88,6 +88,7 @@ export type Settings = {
       minimizeToTaskbar: boolean;
       nameDisplay: string;
       nameDisplayV2: string;
+      uiUpdateTimer: number;
     };
     design: {
       compactDesign: boolean;
@@ -174,6 +175,7 @@ const defaultSettings: Settings = {
       minimizeToTaskbar: false,
       nameDisplay: "name+class",
       nameDisplayV2: "name+gear+class",
+      uiUpdateTimer: 200,
     },
     design: {
       compactDesign: false,

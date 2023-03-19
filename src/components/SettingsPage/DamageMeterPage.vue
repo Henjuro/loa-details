@@ -174,6 +174,33 @@
         />
       </q-item-section>
     </q-item>
+    <q-item>
+      <q-item-section side>
+        <q-icon name="access_time" />
+        <q-item-label>UI Update Timer</q-item-label>
+      </q-item-section>
+      <q-item-section>
+        <q-slider
+          :model-value="
+            settingsStore.settings.damageMeter.functionality.uiUpdateTimer
+          "
+          @change="
+            (val) => {
+              settingsStore.settings.damageMeter.functionality.uiUpdateTimer =
+                val;
+            }
+          "
+          :min="100"
+          :max="5000"
+          :step="50"
+          :markers="500"
+          :snap="true"
+          label
+          :label-value="`Auto minimize after ${settingsStore.settings.damageMeter.functionality.uiUpdateTimer} milliseconds.`"
+          label-always
+        />
+      </q-item-section>
+    </q-item>
 
     <q-separator spaced />
     <q-item-label header>Design</q-item-label>

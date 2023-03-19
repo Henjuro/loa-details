@@ -79,10 +79,12 @@ if (!gotTheLock) {
 
 const meterData = InitMeterData();
 
-const logParser = new LogParser(meterData, true);
-logParser.debugLines = true;
+
 
 let appSettings = getSettings();
+
+const logParser = new LogParser(meterData, true, appSettings.damageMeter.functionality.uiUpdateTimer);
+logParser.debugLines = true;
 
 logParser.dontResetOnZoneChange =
   appSettings.damageMeter.functionality.dontResetOnZoneChange;
@@ -288,6 +290,8 @@ const ipcFunctions: {
 
     mainWindow?.webContents.send("on-settings-change", appSettings);
     damageMeterWindow?.webContents.send("on-settings-change", appSettings);
+
+    logParser.changeBroadcastStateChangeInterval(appSettings.damageMeter.functionality.uiUpdateTimer);
 
     logParser.dontResetOnZoneChange =
       appSettings.damageMeter.functionality.dontResetOnZoneChange;
