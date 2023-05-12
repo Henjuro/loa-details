@@ -330,6 +330,10 @@ const defaultSettings: Settings = {
         name: "Tab: Effective (used up) shield gotten from other players",
         enabled: false,
       },
+      statusEffectsGraph: {
+        name: "Buff Grap",
+        enabled: false,
+      },
     },
     buffFilter: {
       party:

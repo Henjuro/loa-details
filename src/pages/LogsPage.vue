@@ -3,7 +3,7 @@
     ref="verticalScrollArea"
     style="height: calc(100vh - 4px - 32px - 66px)"
   >
-    <div class="flex justify-start column">
+    <div class="flex justify-start column logs-page-container">
       <div
         v-if="
           logViewerStore.viewerState === 'loading' ||
@@ -214,7 +214,7 @@
           logViewerStore.viewerState === 'viewing-encounter' &&
           logFile.viewingLogFile
         "
-        class="logs-page"
+        class="logs-page page-container"
       >
         <LogView ref="logView" :log-data="logFile.data" />
       </div>

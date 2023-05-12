@@ -1,5 +1,15 @@
 <template>
   <div class="damage-meter-table-wrapper" :style="wrapperStyle">
+    <template
+      v-if="damageType === 'statuseffects_graph'"
+    >
+      <StatusEffectsGraph
+        :session-state="sessionState"
+      />
+    </template>
+    <template
+      v-else
+    >
     <table class="damage-meter-table">
       <thead>
         <q-menu touch-position context-menu>
@@ -715,6 +725,7 @@
         </template>
       </tbody>
     </table>
+    </template>
   </div>
 </template>
 
@@ -752,6 +763,7 @@ import {
   tabNames,
   DamageType,
 } from "../../util/helpers";
+import StatusEffectsGraph from "components/DamageMeter/StatusEffectsGraph.vue";
 
 const settingsStore = useSettingsStore();
 

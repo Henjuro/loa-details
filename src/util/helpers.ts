@@ -56,6 +56,7 @@ export type DamageType =
   | "dmg"
   | "tank"
   | "heal"
+  | "statuseffects_graph"
   | "party_buff_dmg"
   | "party_buff_hit"
   | "self_buff_dmg"
