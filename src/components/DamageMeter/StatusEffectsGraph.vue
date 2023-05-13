@@ -258,12 +258,41 @@ function addStatusEffect(
   buffId: number,
   statusEffect: StatusEffect
 ) {
+  if (!isStatusEffectFiltered(statusEffect)) return;
   // Add status effect to collection
   if (collection.has(tableKey)) {
     collection.get(tableKey)?.set(buffId, statusEffect);
   } else {
     collection.set(tableKey, new Map([[buffId, statusEffect]]));
   }
+}
+
+function isStatusEffectFiltered(
+  se: StatusEffect
+) {
+  if (se.bufftype === 0) return true;
+  // Party synergies
+  if (
+    ["classskill", "identity", "ability"].includes(se.buffcategory) &&
+    se.target === StatusEffectTarget.PARTY
+  ) {
+    if(settingsStore.settings.damageMeter.buffFilter['party'] & StatusEffectBuffTypeFlags.ANY)
+      return true;
+    return (
+      (settingsStore.settings.damageMeter.buffFilter['party'] &
+      se.bufftype) !== 0
+    );
+  } else if (
+    ["classskill", "identity", "ability", "pet", "cook", "battleitem", "dropsofether", "bracelet", "set"].includes(se.buffcategory)
+  ) {
+    if(settingsStore.settings.damageMeter.buffFilter['self'] & StatusEffectBuffTypeFlags.ANY)
+      return true;
+    return (
+      (settingsStore.settings.damageMeter.buffFilter['self'] &
+      se.bufftype) !== 0
+    );
+  }
+  return false;
 }
 
 interface CastGroupInfo {
