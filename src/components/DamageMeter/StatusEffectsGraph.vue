@@ -39,9 +39,10 @@ import { useSettingsStore } from "stores/settings";
 import {
   GameState,
   StatusEffect,
+  StatusEffectBuffTypeFlags,
   StatusEffectCast,
   StatusEffectTarget,
-} from "app/../meter-core/dist/logger/data";
+} from "meter-core/logger/data";
 import type {
   TooltipFormatterCallback,
   TopLevelFormatterParams,
@@ -362,13 +363,11 @@ function prepare() {
       for (let idx = 0; idx < instanceCastsForGroup.length; idx++) {
         if (
           currentGroupStart === undefined ||
-          (Math.abs(
+          Math.abs(
             currentGroupStart.started - instanceCastsForGroup[idx].started
-          ) > 20 &&
-            currentGroupStart.sourceName ===
-              instanceCastsForGroup[idx].sourceName &&
-            currentGroupStart.targetName ===
-              instanceCastsForGroup[idx].targetName)
+          ) > 20 ||
+          currentGroupStart.sourceName !== instanceCastsForGroup[idx].sourceName ||
+          currentGroupStart.targetName !== instanceCastsForGroup[idx].targetName
         ) {
           currentGroupStart = instanceCastsForGroup[idx];
           castGroup = [currentGroupStart];
