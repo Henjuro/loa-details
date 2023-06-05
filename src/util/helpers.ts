@@ -51,6 +51,7 @@ export type DamageType =
   | "rdps"
   | "tank"
   | "heal"
+  | "statuseffects_graph"
   | "party_buff_dmg"
   | "party_buff_hit"
   | "self_buff_dmg"

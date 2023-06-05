@@ -1,5 +1,5 @@
 <template>
-  <div ref="logView" :style="isTakingScreenshot ? 'padding: 16px' : ''">
+  <div class="log-view" ref="logView" :style="isTakingScreenshot ? 'padding: 16px' : ''">
     <div class="info-box">
       <div class="flex" v-if="logData">
         <span style="margin-right: 12px">
@@ -111,6 +111,14 @@
           size="sm"
           @click="damageType = 'other_buff_hit'"
           label="OTHER BUFF HIT"
+        />
+      </template>
+      <template v-if="settingsStore.settings.damageMeter.tabs.statusEffectsGraph.enabled">
+        <q-btn
+          flat
+          size="sm"
+          @click="damageType = 'statuseffects_graph'"
+          label="Buff Graph"
         />
       </template>
     </div>
