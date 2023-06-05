@@ -8,7 +8,7 @@ log.transports.file.level = "info";
 export const updaterEventEmitter = new EventEmitter();
 
 export function checkForUpdates() {
-  void autoUpdater.checkForUpdates();
+  updaterEventEmitter.emit("event", { message: "update-not-available" });
 }
 
 export function quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean) {
