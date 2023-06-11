@@ -2,15 +2,16 @@
   <div class="entity-bar">
     <q-toggle
       v-for="player of players"
-      v-bind:key="player.id"
+      v-bind:key="player.name"
       :label="player.name"
-      v-model="playerIdList"
-      :val="player.id"
+      v-model="playerNameList"
+      :val="player.name"
     >
     </q-toggle>
   </div>
   <div class="chart-container">
     <v-chart
+      :ref="(el:EChartsType) => {chartRef = el;}"
       class="statuseffect-chart"
       :option="option"
       autoresize
@@ -32,7 +33,7 @@ import {
   ToolboxComponent,
   DataZoomComponent,
 } from "echarts/components";
-import { onMounted, PropType, Ref, ref, shallowRef, watch } from "vue";
+import { onMounted, PropType, ShallowRef, shallowRef, watch } from "vue";
 import VChart from "vue-echarts";
 import { EntityExtended, getClassName, getIconPath } from "src/util/helpers";
 import { useSettingsStore } from "stores/settings";
@@ -49,11 +50,11 @@ import type {
 } from "echarts/types/dist/shared";
 import type {
   CustomSeriesRenderItem,
-  SeriesOption,
+  CustomSeriesOption,
   CustomSeriesRenderItemReturn,
   EChartsOption,
+  EChartsType,
 } from "echarts";
-import { ShallowRef } from "vue";
 
 interface CustomSeriesRenderItemParamsCoordSysCartesian2D {
   type: string;
@@ -82,41 +83,42 @@ const settingsStore = useSettingsStore();
 
 let entitiesCopy: EntityExtended[] = [];
 
-const option = ref<EChartsOption>({});
+const option = shallowRef<EChartsOption>({});
 const initOptions = shallowRef({ renderer: "canvas" });
 const players: ShallowRef<EntityExtended[]> = shallowRef([]);
-const playerIdList: Ref<string[]> = ref([]);
-let playerAmount = 0;
+let chartRef: EChartsType | undefined = undefined;
+const playerNameList: ShallowRef<string[]> = shallowRef([]);
+let displayedAmount = 0;
+//let lastSelectedStat: {[name: string]: boolean} = {};
+// where in the series collection is this player
+let playerNameToDataIndexMap: Map<string, number> = new Map();
+// where in the displayed players is this player
+// based on his data position
+let playerDataIndexToDisplayIndexMap: Map<number, number> = new Map();
+let playerNameToSeriesMap: Map<string, CustomSeriesOption> = new Map();
+let baseYAxisCategories: string[] = [];
+let baseYAxisIndexToDisplayIndexMap: Map<number, number> = new Map();
 
 function prepareExistingEntities() {
   players.value = Array.from(props.sessionState?.entities.values()).filter(
-    (e) => e.isPlayer && e.damageDealt > 0
+    (e) => e.isPlayer && e.damageInfo.damageDealt > 0
   );
-  players.value.sort((a, b) => a.damageDealt - b.damageDealt);
-  players.value.forEach((p) => {
-    playerIdList.value.push(p.id);
-  });
-}
-
-function filterForDisplayEntities() {
-  entitiesCopy = players.value.filter((val) => {
-    return playerIdList.value.includes(val.id);
-  })
+  players.value.sort((a, b) => a.damageInfo.damageDealt - b.damageInfo.damageDealt);
+  entitiesCopy = players.value;
 }
 
 watch(props, () => {
   prepareExistingEntities();
-  filterForDisplayEntities();
-  prepare()
+  prepareChartData();
+  createAndUpdateDisplayedData(playerNameList.value);
 });
 onMounted(() => {
   prepareExistingEntities();
-  filterForDisplayEntities();
-  prepare()
+  prepareChartData();
+  createAndUpdateDisplayedData(playerNameList.value);
 });
-watch(playerIdList, () => {
-  filterForDisplayEntities();
-  prepare();
+watch(playerNameList, () => {
+  createAndUpdateDisplayedData(playerNameList.value);
 });
 
 const renderToolTip: TooltipFormatterCallback<TopLevelFormatterParams> = (
@@ -129,6 +131,8 @@ const renderToolTip: TooltipFormatterCallback<TopLevelFormatterParams> = (
   const iconPaths = (params.value[5] as string).split("|");
   const sourceName = params.value[7] as string;
   const targetName = params.value[8] as string;
+  const comment = params.value[9] as string;
+  const buffId = params.value[10] as number;
   let pics = "";
   iconPaths.forEach((val) => {
     pics += `<image src="${val}"/>`;
@@ -138,30 +142,44 @@ const renderToolTip: TooltipFormatterCallback<TopLevelFormatterParams> = (
     `</br>Names: ${buffNames.join(", ")}` +
     `</br>Duration: ${((params.value[3] as number) / 1000).toFixed(
       1
-    )}s</br>Source: ${sourceName}</br>Target: ${targetName}`;
+    )}s</br>Source: ${sourceName}</br>Target: ${targetName}` +
+    `</br>Comment: ${comment}` +
+    `</br>BuffId: ${buffId}`;
   return tooltip;
 };
 
 const renderItem: CustomSeriesRenderItem = (params, api) => {
   const SHOW_ICONS = false;
   // value[playerIdx, startTime, endTime, duration]
+  const buffId = api.value(10) as number;
+  if (buffId === 500217) {
+    console.log("Predator:");
+  }
   if (params.coordSys.type !== "cartesian2d") return;
+  if (displayedAmount < 1) return;
   const coordSys =
     params.coordSys as unknown as CustomSeriesRenderItemParamsCoordSysCartesian2D;
-  const categoryIndex = api.value(0);
+  const baseCategoryIndex = api.value(0) as number;
+  const categoryIndex = baseYAxisIndexToDisplayIndexMap.get(baseCategoryIndex);
+  if (categoryIndex === undefined) return;
   const start = api.coord([api.value(1), categoryIndex]);
   const end = api.coord([api.value(2), categoryIndex]);
   const playerIdx = api.value(6) as number;
   if (api.size === undefined) return;
   const sizeResult = api.size([0, 1]) as number[];
   const barPercent = 0.8;
-  const height = (sizeResult[1] * barPercent) / playerAmount;
+  const height = (sizeResult[1] * barPercent) / displayedAmount;
   const iconSize = height * 0.8;
+  const displayIdx = playerDataIndexToDisplayIndexMap.get(playerIdx);
+  if (displayIdx === undefined) return;
   const yPos =
     start[1] -
     sizeResult[1] / 2 +
-    height * playerIdx +
+    height * displayIdx +
     (sizeResult[1] * (1 - barPercent)) / 2;
+  if (buffId === 500217) {
+    console.log("Predator:", "x: ", start[0], "y:", yPos, "width", end[0] - start[0], "height:", height);
+  }
   const durationBar = graphic.clipRectByRect(
     {
       x: start[0],
@@ -183,10 +201,12 @@ const renderItem: CustomSeriesRenderItem = (params, api) => {
         type: "rect",
         transition: ["shape"],
         shape: durationBar,
-        style: api.style(),
+        style: {
+          fill: api.visual("color"),
+        },
       },
     ],
-  } as { type: string; children: any[] };
+  } as { type: string; children: unknown[] };
 
   if (SHOW_ICONS) {
     const iconPaths = (api.value(5) as string).split("|");
@@ -213,45 +233,8 @@ function filterStatusEffects(
   id: number,
   statusEffects: Map<string, Map<number, StatusEffect>>
 ) {
-  // Party synergies
-  if (
-    ["classskill", "identity", "ability"].includes(buff.buffcategory) &&
-    buff.target === StatusEffectTarget.PARTY
-  ) {
-    const key = `${getClassName(buff.source.skill?.classid)}_${
-      buff.uniquegroup ? buff.uniquegroup : buff.source.skill?.name
-    }`;
-    addStatusEffect(statusEffects, key, id, buff);
-  }
-  // Self synergies
-  else if (
-    ["pet", "cook", "battleitem", "dropsofether", "bracelet"].includes(
-      buff.buffcategory
-    )
-  ) {
-    addStatusEffect(statusEffects, buff.buffcategory, id, buff);
-  } else if (["set"].includes(buff.buffcategory)) {
-    addStatusEffect(statusEffects, `set_${buff.source.setname}`, id, buff);
-  } else if (
-    ["classskill", "identity", "ability"].includes(buff.buffcategory)
-  ) {
-    // self & other identity, classskill, engravings
-    let key;
-    if (buff.buffcategory === "ability") {
-      key = `${buff.uniquegroup ? buff.uniquegroup : id}`;
-    } else {
-      key = `${getClassName(buff.source.skill?.classid)}_${
-        buff.uniquegroup ? buff.uniquegroup : buff.source.skill?.name
-      }`;
-    }
-    addStatusEffect(statusEffects, key, id, buff);
-  } else {
-    // others
-    const key = `${buff.buffcategory}_${
-      buff.uniquegroup ? buff.uniquegroup : id
-    }`;
-    addStatusEffect(statusEffects, key, id, buff);
-  }
+  const key = buff.source.skill?.name ?? buff.source.name;
+  addStatusEffect(statusEffects, key, id, buff);
 }
 function addStatusEffect(
   collection: Map<string, Map<number, StatusEffect>>,
@@ -277,30 +260,36 @@ function isStatusEffectFiltered(
     ["classskill", "identity", "ability"].includes(se.buffcategory) &&
     se.target === StatusEffectTarget.PARTY
   ) {
-    if(settingsStore.settings.damageMeter.buffFilter['party'] & StatusEffectBuffTypeFlags.ANY)
+    if(settingsStore.settings.damageMeter.buffFilter["party"] & StatusEffectBuffTypeFlags.ANY)
       return true;
     return (
-      (settingsStore.settings.damageMeter.buffFilter['party'] &
+      (settingsStore.settings.damageMeter.buffFilter["party"] &
       se.bufftype) !== 0
     );
   } else if (
     ["classskill", "identity", "ability", "pet", "cook", "battleitem", "dropsofether", "bracelet", "set"].includes(se.buffcategory)
   ) {
-    if(settingsStore.settings.damageMeter.buffFilter['self'] & StatusEffectBuffTypeFlags.ANY)
+    if(settingsStore.settings.damageMeter.buffFilter["self"] & StatusEffectBuffTypeFlags.ANY)
       return true;
     return (
-      (settingsStore.settings.damageMeter.buffFilter['self'] &
+      (settingsStore.settings.damageMeter.buffFilter["self"] &
       se.bufftype) !== 0
     );
   }
   return false;
+}
+interface PlayerSeries {
+  name: string;
+  playerDataIdx: number;
+  color: string;
+  castGroupInfos: CastGroupInfo[];
 }
 
 interface CastGroupInfo {
   name: string;
   casts: CastInfo[];
   yAxisIndex: number;
-  color: string;
+  yAxisName: string;
 }
 
 interface CastInfo {
@@ -308,24 +297,33 @@ interface CastInfo {
   to: number;
   icons: string[];
   names: string[];
-  playerIdx: number;
   sourceName: string;
   targetName: string;
+  buffComment: string;
+  buffId: number;
 }
 
-function prepare() {
+function prepareChartData() {
   // these are the rows
+  playerNameToSeriesMap.clear();
+  const playerSeriesDatas: PlayerSeries[] = [];
   const yAxisNames: string[] = [];
-  const castGroupInfos: CastGroupInfo[] = [];
+
   const groupKeyToRowIndexMap: Map<string, number> = new Map();
   const playerNames: string[] = [];
 
-  playerAmount = entitiesCopy.length;
   entitiesCopy.forEach((e) => {
     playerNames.push(e.name);
-    const playerIdx = playerNames.length - 1;
+    const playerDataIndex = playerNames.length - 1;
+    playerNameToDataIndexMap.set(e.name, playerDataIndex);
+    const playerSeries: PlayerSeries = {
+      name: e.name,
+      playerDataIdx: playerDataIndex,
+      color: settingsStore.getClassColor(getClassName(e.classId)),
+      castGroupInfos: [],
+    }
     const effectGroups: Map<string, Map<number, StatusEffect>> = new Map();
-    e.statusEffectsGotten.forEach((seData, idx) => {
+    e.statusEffectsGotten.forEach((seData) => {
       const se =
         props.sessionState.damageStatistics.buffs.get(seData.id) ??
         props.sessionState.damageStatistics.debuffs.get(seData.id);
@@ -382,7 +380,7 @@ function prepare() {
       if (rowIndex === undefined) {
         effectGroup.forEach((effect) => {
           if (!rowName) {
-            rowName = effect.source.skill?.name ?? effect.source.name;
+            rowName = rowKey;//effect.source.skill?.name ?? effect.source.name;
           }
         });
         yAxisNames.push(rowName ?? "Unknown");
@@ -395,7 +393,7 @@ function prepare() {
         name: (rowName ?? "Unknown") + "_" + e.name,
         casts: [],
         yAxisIndex: rowIndex,
-        color: settingsStore.getClassColor(getClassName(e.classId)),
+        yAxisName: (rowName ?? "Unknown"),
       };
       // these are the different "columns"
       castInstanceGroups.forEach((castGroup) => {
@@ -403,8 +401,9 @@ function prepare() {
         let started = -1;
         let ended = -1;
         const effectNames: string[] = [];
-        let sourceName = "Unknown";
-        let targetName = "Unknown";
+        let sourceName = "";
+        let targetName = "";
+        let buffComment = "";
         castGroup.forEach((seCast) => {
           const buffInfo =
             props.sessionState.damageStatistics.buffs.get(seCast.id) ??
@@ -416,7 +415,12 @@ function prepare() {
             effectNames.push(buffInfo?.source.name);
           }
           if (buffInfo !== undefined) {
-            buffIcons.push(getIconPath(buffInfo.source.icon));
+            const iconPath = getIconPath(buffInfo.source.icon);
+            if (!buffIcons.includes(iconPath)) buffIcons.push(iconPath);
+            if (!buffComment.includes(buffInfo.source.desc)) {
+              if (buffComment.length > 0) buffComment += "</br>";
+              buffComment += buffInfo.source.desc;
+            }
           }
           if (started === -1 || started > seCast.started) {
             started = seCast.started;
@@ -424,11 +428,17 @@ function prepare() {
           if (ended === -1 || ended < seCast.started + seCast.duration) {
             ended = seCast.started + seCast.duration;
           }
-          if (sourceName === "Unknown" && seCast.sourceName !== undefined) {
-            sourceName = seCast.sourceName;
+          if (seCast.sourceName !== undefined) {
+            if (!sourceName.includes(seCast.sourceName)) {
+              if (sourceName.length > 0) sourceName += "</br>"
+              sourceName += seCast.sourceName;
+            }
           }
-          if (targetName === "Unknown" && seCast.targetName !== undefined) {
-            targetName = seCast.targetName;
+          if (seCast.targetName !== undefined) {
+            if (!targetName.includes(seCast.targetName)) {
+              if (targetName.length > 0) targetName += "</br>"
+              targetName += seCast.targetName;
+            }
           }
         });
         castGroupInfo?.casts.push({
@@ -436,53 +446,114 @@ function prepare() {
           to: ended - props.sessionState.fightStartedOn,
           icons: buffIcons,
           names: effectNames,
-          playerIdx: playerIdx,
           sourceName: sourceName,
           targetName: targetName,
+          buffComment: buffComment,
+          buffId: castGroup[0].id,
         });
       });
-      castGroupInfos.push(castGroupInfo);
+      playerSeries.castGroupInfos.push(castGroupInfo);
     });
+    playerSeriesDatas.push(playerSeries);
   });
-  const seriesData: unknown[] = [];
-  castGroupInfos.forEach((castGroupInfo: CastGroupInfo) => {
-    castGroupInfo.casts.forEach((cast) => {
-      cast.from = Math.max(cast.from, 0);
-      cast.to = Math.min(cast.to, (props.sessionState.lastCombatPacket-props.sessionState.fightStartedOn));
-      seriesData.push({
-        name: castGroupInfo.name,
-        value: [
-          castGroupInfo.yAxisIndex,
-          cast.from,
-          cast.to,
-          cast.to - cast.from,
-          cast.names,
-          cast.icons.join("|"),
-          cast.playerIdx,
-          cast.sourceName,
-          cast.targetName,
-        ],
-        itemStyle: {
-          normal: {
-            color: castGroupInfo.color,
-          },
-        },
+
+  playerSeriesDatas.forEach((playerSeries: PlayerSeries) => {
+    const seriesData: GraphSeriesData[] = [];
+    playerSeries.castGroupInfos.forEach((castGroupInfo: CastGroupInfo) => {
+      castGroupInfo.casts.forEach((cast) => {
+        cast.from = Math.max(cast.from, 0);
+        cast.to = Math.min(cast.to, (props.sessionState.lastCombatPacket-props.sessionState.fightStartedOn));
+        seriesData.push({
+          name: castGroupInfo.name,
+          value: [
+            castGroupInfo.yAxisIndex,
+            cast.from,
+            cast.to,
+            cast.to - cast.from,
+            cast.names,
+            cast.icons.join("|"),
+            playerSeries.playerDataIdx,
+            cast.sourceName,
+            cast.targetName,
+            cast.buffComment,
+            cast.buffId,
+            castGroupInfo.yAxisName,
+          ]
+        });
       });
     });
-  });
-  const series: SeriesOption[] = [
-    {
+    const series: CustomSeriesOption = {
       type: "custom",
+      name: playerSeries.name,
       renderItem: renderItem,
       encode: {
         x: [1, 2],
-        y: [0],
+        y: [11],
+        //itemGroupId: 0,
       },
-      data: seriesData,
-    },
-  ];
-  option.value = {
+      itemStyle: {
+        color: playerSeries.color,
+      },
+      data: seriesData
+    };
+    playerNameToSeriesMap.set(playerSeries.name, series);
+  });
+
+  baseYAxisCategories = yAxisNames;
+
+  const selectedPlayerNames: string[] = [];
+  for (let n of playerNames) {
+    if (props.sessionState.localPlayer === n) {
+      selectedPlayerNames.push(n);
+    }
+  }
+  playerNameList.value = selectedPlayerNames;
+}
+
+function createAndUpdateDisplayedData(selectedPlayerNames: string[]) {
+  // filter categories and create index map from base array to filtered array
+  const newCategories: string[] = [];
+  baseYAxisIndexToDisplayIndexMap.clear();
+  for(const [playerName, playerSeries] of playerNameToSeriesMap) {
+    if (!selectedPlayerNames.includes(playerName)) continue;
+    const graphData = playerSeries.data as GraphSeriesData[];
+    for(const graphEntry of graphData) {
+      const oldCategoryIndex = graphEntry.value[0];
+      if (!baseYAxisIndexToDisplayIndexMap.has(oldCategoryIndex)) {
+        const categoryName = baseYAxisCategories[oldCategoryIndex];
+        baseYAxisIndexToDisplayIndexMap.set(oldCategoryIndex, newCategories.length);
+        newCategories.push(categoryName);
+      }
+    }
+  }
+  const seriesCollection: CustomSeriesOption[] = [];
+  for(const [playerName, playerSeries] of playerNameToSeriesMap) {
+    if (!selectedPlayerNames.includes(playerName)) continue;
+    seriesCollection.push(playerSeries);
+  }
+  // create map from base player position to display position
+  let displayIdx = 0;
+  playerDataIndexToDisplayIndexMap.clear();
+  for(const [playerName,] of playerNameToSeriesMap) {
+    if (!selectedPlayerNames.includes(playerName)) continue;
+    const playerDataIdx = playerNameToDataIndexMap.get(playerName);
+    if (playerDataIdx === undefined) {
+      console.error("Could not get DataIdx for", playerName, "skipping player.");
+      continue;
+    }
+    playerDataIndexToDisplayIndexMap.set(playerDataIdx, displayIdx++);
+  }
+
+  displayedAmount = seriesCollection.length;
+  //const yAxisNames = redoYAxisInformation(names);
+  option.value = buildOption(seriesCollection);
+  //chartRef?.resize();
+}
+
+function buildOption(seriesCollection: CustomSeriesOption[]): EChartsOption {
+  return {
     responsive: true,
+    animation: true,
     tooltip: {
       trigger: "item",
       axisPointer: {
@@ -503,6 +574,9 @@ function prepare() {
         restore: {},
       },
     },
+    legend: {
+      show: false,
+    },
     dataZoom: [
       {
         type: "slider",
@@ -515,21 +589,20 @@ function prepare() {
       },
     ],
     grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
+      left: "10%",
+      right: "10%",
+      bottom: "10%",
       containLabel: true,
     },
     yAxis: {
       type: "category",
-      data: yAxisNames,
     },
     xAxis: {
       min: 0,
       scale: true,
       axisLabel: {
         formatter: function (val: number) {
-          return Math.floor(Math.max(0, val - 0) / 1000) + "s";
+          return `${Math.floor(Math.max(0, val - 0) / 1000)}s`;
         },
       },
     },
@@ -539,9 +612,20 @@ function prepare() {
         show: true,
       },
     },
-    series: series,
+    plotOptions: {
+      series: {
+        grouping: false
+      }
+    },
+    series: seriesCollection,
   };
 }
+
+interface GraphSeriesData {
+  name: string;
+  value: [number, number, number, number, string[], string, number, string, string, string, number, string];
+}
+
 </script>
 <style scoped>
 .chart-container {
