@@ -103,7 +103,9 @@ function prepareExistingEntities() {
   players.value = Array.from(props.sessionState?.entities.values()).filter(
     (e) => e.isPlayer && e.damageInfo.damageDealt > 0
   );
-  players.value.sort((a, b) => a.damageInfo.damageDealt - b.damageInfo.damageDealt);
+  players.value.sort(
+    (a, b) => a.damageInfo.damageDealt - b.damageInfo.damageDealt
+  );
   entitiesCopy = players.value;
 }
 
@@ -244,29 +246,43 @@ function addStatusEffect(
   }
 }
 
-function isStatusEffectFiltered(
-  se: StatusEffect
-) {
+function isStatusEffectFiltered(se: StatusEffect) {
   if (se.bufftype === 0) return true;
   // Party synergies
   if (
     ["classskill", "identity", "ability"].includes(se.buffcategory) &&
     se.target === StatusEffectTarget.PARTY
   ) {
-    if(settingsStore.settings.damageMeter.buffFilter["party"] & StatusEffectBuffTypeFlags.ANY)
+    if (
+      settingsStore.settings.damageMeter.buffFilter["party"] &
+      StatusEffectBuffTypeFlags.ANY
+    )
       return true;
     return (
-      (settingsStore.settings.damageMeter.buffFilter["party"] &
-      se.bufftype) !== 0
+      (settingsStore.settings.damageMeter.buffFilter["party"] & se.bufftype) !==
+      0
     );
   } else if (
-    ["classskill", "identity", "ability", "pet", "cook", "battleitem", "dropsofether", "bracelet", "set"].includes(se.buffcategory)
+    [
+      "classskill",
+      "identity",
+      "ability",
+      "pet",
+      "cook",
+      "battleitem",
+      "dropsofether",
+      "bracelet",
+      "set",
+    ].includes(se.buffcategory)
   ) {
-    if(settingsStore.settings.damageMeter.buffFilter["self"] & StatusEffectBuffTypeFlags.ANY)
+    if (
+      settingsStore.settings.damageMeter.buffFilter["self"] &
+      StatusEffectBuffTypeFlags.ANY
+    )
       return true;
     return (
-      (settingsStore.settings.damageMeter.buffFilter["self"] &
-      se.bufftype) !== 0
+      (settingsStore.settings.damageMeter.buffFilter["self"] & se.bufftype) !==
+      0
     );
   }
   return false;
@@ -314,7 +330,7 @@ function prepareChartData() {
       playerDataIdx: playerDataIndex,
       color: settingsStore.getClassColor(getClassName(e.classId)),
       castGroupInfos: [],
-    }
+    };
     const effectGroups: Map<string, Map<number, StatusEffect>> = new Map();
     e.statusEffectsGotten.forEach((seData) => {
       const se =
@@ -326,7 +342,6 @@ function prepareChartData() {
 
     // these are the different rows
     effectGroups.forEach((effectGroup, rowKey) => {
-      let rowName: string | undefined = undefined;
       // group things that have same start time and duration
       const castInstanceGroups: StatusEffectCast[][] = [];
       // sorted instance array by starttime and duration
@@ -357,7 +372,8 @@ function prepareChartData() {
           Math.abs(
             currentGroupStart.started - instanceCastsForGroup[idx].started
           ) > 20 ||
-          currentGroupStart.sourceName !== instanceCastsForGroup[idx].sourceName ||
+          currentGroupStart.sourceName !==
+            instanceCastsForGroup[idx].sourceName ||
           currentGroupStart.targetName !== instanceCastsForGroup[idx].targetName
         ) {
           currentGroupStart = instanceCastsForGroup[idx];
@@ -371,22 +387,15 @@ function prepareChartData() {
       let rowIndex = groupKeyToRowIndexMap.get(rowKey);
       let castGroupInfo: CastGroupInfo | undefined;
       if (rowIndex === undefined) {
-        effectGroup.forEach((effect) => {
-          if (!rowName) {
-            rowName = rowKey;//effect.source.skill?.name ?? effect.source.name;
-          }
-        });
-        yAxisNames.push(rowName ?? "Unknown");
+        yAxisNames.push(rowKey);
         rowIndex = yAxisNames.length - 1;
         groupKeyToRowIndexMap.set(rowKey, rowIndex);
-      } else {
-        rowName = yAxisNames[rowIndex];
       }
       castGroupInfo = {
-        name: (rowName ?? "Unknown") + "_" + e.name,
+        name: rowKey + "_" + e.name,
         casts: [],
         yAxisIndex: rowIndex,
-        yAxisName: (rowName ?? "Unknown"),
+        yAxisName: rowKey,
       };
       // these are the different "columns"
       castInstanceGroups.forEach((castGroup) => {
@@ -423,13 +432,13 @@ function prepareChartData() {
           }
           if (seCast.sourceName !== undefined) {
             if (!sourceName.includes(seCast.sourceName)) {
-              if (sourceName.length > 0) sourceName += "</br>"
+              if (sourceName.length > 0) sourceName += "</br>";
               sourceName += seCast.sourceName;
             }
           }
           if (seCast.targetName !== undefined) {
             if (!targetName.includes(seCast.targetName)) {
-              if (targetName.length > 0) targetName += "</br>"
+              if (targetName.length > 0) targetName += "</br>";
               targetName += seCast.targetName;
             }
           }
@@ -455,7 +464,11 @@ function prepareChartData() {
     playerSeries.castGroupInfos.forEach((castGroupInfo: CastGroupInfo) => {
       castGroupInfo.casts.forEach((cast) => {
         cast.from = Math.max(cast.from, 0);
-        cast.to = Math.min(cast.to, (props.sessionState.lastCombatPacket-props.sessionState.fightStartedOn));
+        cast.to = Math.min(
+          cast.to,
+          props.sessionState.lastCombatPacket -
+            props.sessionState.fightStartedOn
+        );
         seriesData.push({
           name: castGroupInfo.name,
           value: [
@@ -471,7 +484,7 @@ function prepareChartData() {
             cast.buffComment,
             cast.buffId,
             castGroupInfo.yAxisName,
-          ]
+          ],
         });
       });
     });
@@ -482,12 +495,11 @@ function prepareChartData() {
       encode: {
         x: [1, 2],
         y: [11],
-        //itemGroupId: 0,
       },
       itemStyle: {
         color: playerSeries.color,
       },
-      data: seriesData
+      data: seriesData,
     };
     playerNameToSeriesMap.set(playerSeries.name, series);
   });
@@ -507,40 +519,45 @@ function createAndUpdateDisplayedData(selectedPlayerNames: string[]) {
   // filter categories and create index map from base array to filtered array
   const newCategories: string[] = [];
   baseYAxisIndexToDisplayIndexMap.clear();
-  for(const [playerName, playerSeries] of playerNameToSeriesMap) {
+  for (const [playerName, playerSeries] of playerNameToSeriesMap) {
     if (!selectedPlayerNames.includes(playerName)) continue;
     const graphData = playerSeries.data as GraphSeriesData[];
-    for(const graphEntry of graphData) {
+    for (const graphEntry of graphData) {
       const oldCategoryIndex = graphEntry.value[0];
       if (!baseYAxisIndexToDisplayIndexMap.has(oldCategoryIndex)) {
         const categoryName = baseYAxisCategories[oldCategoryIndex];
-        baseYAxisIndexToDisplayIndexMap.set(oldCategoryIndex, newCategories.length);
+        baseYAxisIndexToDisplayIndexMap.set(
+          oldCategoryIndex,
+          newCategories.length
+        );
         newCategories.push(categoryName);
       }
     }
   }
   const seriesCollection: CustomSeriesOption[] = [];
-  for(const [playerName, playerSeries] of playerNameToSeriesMap) {
+  for (const [playerName, playerSeries] of playerNameToSeriesMap) {
     if (!selectedPlayerNames.includes(playerName)) continue;
     seriesCollection.push(playerSeries);
   }
   // create map from base player position to display position
   let displayIdx = 0;
   playerDataIndexToDisplayIndexMap.clear();
-  for(const [playerName,] of playerNameToSeriesMap) {
+  for (const [playerName] of playerNameToSeriesMap) {
     if (!selectedPlayerNames.includes(playerName)) continue;
     const playerDataIdx = playerNameToDataIndexMap.get(playerName);
     if (playerDataIdx === undefined) {
-      console.error("Could not get DataIdx for", playerName, "skipping player.");
+      console.error(
+        "Could not get DataIdx for",
+        playerName,
+        "skipping player."
+      );
       continue;
     }
     playerDataIndexToDisplayIndexMap.set(playerDataIdx, displayIdx++);
   }
 
   displayedAmount = seriesCollection.length;
-  //const yAxisNames = redoYAxisInformation(names);
   option.value = buildOption(seriesCollection);
-  //chartRef?.resize();
 }
 
 function buildOption(seriesCollection: CustomSeriesOption[]): EChartsOption {
@@ -562,8 +579,7 @@ function buildOption(seriesCollection: CustomSeriesOption[]): EChartsOption {
       itemSize: 25,
       top: 55,
       feature: {
-        dataZoom: {
-        },
+        dataZoom: {},
         restore: {},
       },
     },
@@ -607,8 +623,8 @@ function buildOption(seriesCollection: CustomSeriesOption[]): EChartsOption {
     },
     plotOptions: {
       series: {
-        grouping: false
-      }
+        grouping: false,
+      },
     },
     series: seriesCollection,
   };
@@ -616,9 +632,21 @@ function buildOption(seriesCollection: CustomSeriesOption[]): EChartsOption {
 
 interface GraphSeriesData {
   name: string;
-  value: [number, number, number, number, string[], string, number, string, string, string, number, string];
+  value: [
+    number,
+    number,
+    number,
+    number,
+    string[],
+    string,
+    number,
+    string,
+    string,
+    string,
+    number,
+    string
+  ];
 }
-
 </script>
 <style scoped>
 .chart-container {
