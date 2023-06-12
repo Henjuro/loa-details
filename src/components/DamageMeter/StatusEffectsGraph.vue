@@ -151,10 +151,6 @@ const renderToolTip: TooltipFormatterCallback<TopLevelFormatterParams> = (
 const renderItem: CustomSeriesRenderItem = (params, api) => {
   const SHOW_ICONS = false;
   // value[playerIdx, startTime, endTime, duration]
-  const buffId = api.value(10) as number;
-  if (buffId === 500217) {
-    console.log("Predator:");
-  }
   if (params.coordSys.type !== "cartesian2d") return;
   if (displayedAmount < 1) return;
   const coordSys =
@@ -177,9 +173,6 @@ const renderItem: CustomSeriesRenderItem = (params, api) => {
     sizeResult[1] / 2 +
     height * displayIdx +
     (sizeResult[1] * (1 - barPercent)) / 2;
-  if (buffId === 500217) {
-    console.log("Predator:", "x: ", start[0], "y:", yPos, "width", end[0] - start[0], "height:", height);
-  }
   const durationBar = graphic.clipRectByRect(
     {
       x: start[0],
